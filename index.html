@@ -6,7 +6,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Global Flappy Bird</title>
     
-    <!-- Firebase SDKs (Compatibility Version) -->
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     
@@ -17,13 +16,18 @@
         
         #ui { position: absolute; color: white; text-align: center; pointer-events: none; width: 100%; top: 10%; z-index: 10; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
         
+        /* FIX: Ensure leaderboard is above everything and clickable */
         #leaderboard {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(0, 0, 0, 0.95); color: white; padding: 20px; border-radius: 15px;
             display: none; z-index: 100; width: 80%; max-width: 280px; text-align: center; border: 3px solid #f1c40f;
+            pointer-events: auto; /* Explicitly allow clicks */
         }
-        #playerName { padding: 12px; width: 85%; margin: 10px 0; border-radius: 5px; border: none; font-size: 18px; }
-        #saveBtn { padding: 12px; background: #2ecc71; border: none; color: white; border-radius: 5px; cursor: pointer; font-weight: bold; width: 93%; font-size: 16px; }
+        #playerName { 
+            padding: 12px; width: 85%; margin: 10px 0; border-radius: 5px; border: 2px solid #555; 
+            font-size: 18px; background: white; color: black; 
+        }
+        #saveBtn { padding: 12px; background: #2ecc71; border: none; color: white; border-radius: 5px; cursor: pointer; font-weight: bold; width: 93%; font-size: 16px; margin-top: 5px; }
         .score-list { text-align: left; margin-top: 15px; font-family: monospace; font-size: 14px; }
         .score-item { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dotted #444; padding-bottom: 2px; }
     </style>
@@ -37,15 +41,14 @@
 
     <div id="leaderboard">
         <h2 id="lbStatus">GLOBAL TOP 5</h2>
-        <input type="text" id="playerName" maxlength="10" placeholder="Your Name">
-        <button id="saveBtn" onclick="saveScore()">SUBMIT SCORE</button>
+        <input type="text" id="playerName" maxlength="10" placeholder="Enter Name">
+        <button id="saveBtn" onclick="saveScore()">SUBMIT & RESTART</button>
         <div class="score-list" id="highScores">Loading...</div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
 
 <script>
-    // --- YOUR SPECIFIC FIREBASE CONFIG ---
     const firebaseConfig = {
         apiKey: "AIzaSyBG85VhTQLL3KIzR0FYO1sItnFC6vhiwEY",
         authDomain: "floppy-bird-4444e.firebaseapp.com",
@@ -56,7 +59,6 @@
         appId: "1:665334944983:web:070b04cb00c56c836e4c92"
     };
 
-    // Initialize
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
@@ -64,7 +66,6 @@
     const ctx = canvas.getContext("2d");
     canvas.width = 320; canvas.height = 480;
 
-    // --- ADJUSTED CHILL PHYSICS ---
     const GRAVITY = 0.18;
     const JUMP = -3.8;
     const PIPE_SPEED = 1.6;
@@ -77,11 +78,7 @@
     function resetGame() {
         bird = { x: 50, y: 150, w: 34, h: 24, velocity: 0 };
         pipes = [];
-        clouds = [
-            { x: 30, y: 50, s: 0.6 },
-            { x: 200, y: 120, s: 1.0 },
-            { x: 350, y: 80, s: 0.8 }
-        ];
+        clouds = [{ x: 30, y: 50, s: 0.6 }, { x: 200, y: 120, s: 1.0 }, { x: 350, y: 80, s: 0.8 }];
         frame = 0; score = 0; gameRunning = false; waitingForName = false;
         document.getElementById("scoreDisplay").innerText = "0";
         document.getElementById("msg").style.opacity = 1;
@@ -90,18 +87,14 @@
 
     function update() {
         if (!gameRunning || waitingForName) return;
-
         clouds.forEach(c => { c.x -= CLOUD_SPEED * c.s; if (c.x < -100) c.x = canvas.width + 50; });
         bird.velocity += GRAVITY;
         bird.y += bird.velocity;
-
         if (bird.y + bird.h > canvas.height - 22 || bird.y < 0) gameOver();
-
         if (frame % PIPE_SPAWN_RATE === 0) {
             const h = Math.floor(Math.random() * (canvas.height - PIPE_GAP - 120)) + 50;
             pipes.push({ x: canvas.width, y: 0, w: 50, h: h, passed: false });
         }
-
         pipes.forEach((p, i) => {
             p.x -= PIPE_SPEED;
             if (!p.passed && bird.x > p.x + p.w) {
@@ -116,26 +109,28 @@
 
     function draw() {
         ctx.fillStyle = "#70c5ce"; ctx.fillRect(0,0,320,480);
-
-        // Clouds
         ctx.fillStyle = "rgba(255,255,255,0.8)";
         clouds.forEach(c => {
             ctx.beginPath(); ctx.arc(c.x, c.y, 20, 0, Math.PI*2); 
             ctx.arc(c.x+20, c.y-10, 25, 0, Math.PI*2);
             ctx.arc(c.x+45, c.y, 20, 0, Math.PI*2); ctx.fill();
         });
-
-        // Pipes
         pipes.forEach(p => {
             ctx.fillStyle = "#2ecc71"; ctx.fillRect(p.x, 0, p.w, p.h); ctx.strokeRect(p.x, 0, p.w, p.h);
             ctx.fillRect(p.x, p.h + PIPE_GAP, p.w, 480); ctx.strokeRect(p.x, p.h + PIPE_GAP, p.w, 480);
         });
 
-        // Yellow Bird
-        ctx.save(); ctx.translate(bird.x+17, bird.y+12); ctx.rotate(Math.min(1, bird.velocity*0.1));
+        // BIRD FIX: Better rotation and wing flap
+        ctx.save(); ctx.translate(bird.x+17, bird.y+12);
+        ctx.rotate(Math.min(Math.PI/4, Math.max(-Math.PI/4, bird.velocity * 0.1)));
         ctx.fillStyle="#f1c40f"; ctx.beginPath(); ctx.ellipse(0,0,17,12,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
         ctx.fillStyle="white"; ctx.beginPath(); ctx.arc(8,-5,5,0,Math.PI*2); ctx.fill(); ctx.stroke();
-        ctx.fillStyle="orange"; ctx.beginPath(); ctx.moveTo(12,0); ctx.lineTo(22,2); ctx.lineTo(12,6); ctx.fill();
+        ctx.fillStyle="black"; ctx.beginPath(); ctx.arc(10,-5,2,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle="orange"; ctx.beginPath(); ctx.moveTo(12,0); ctx.lineTo(22,2); ctx.lineTo(12,6); ctx.fill(); ctx.stroke();
+        // Wing Flap
+        ctx.fillStyle="#e67e22";
+        let wingPos = bird.velocity < 0 ? -6 : 2;
+        ctx.beginPath(); ctx.ellipse(-8, wingPos, 8, 5, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
         ctx.restore();
 
         ctx.fillStyle="#ded895"; ctx.fillRect(0,458,320,22);
@@ -150,10 +145,12 @@
     }
 
     function saveScore() {
-        const name = document.getElementById("playerName").value || "Player";
+        const nameInput = document.getElementById("playerName");
+        const name = nameInput.value.trim() || "Player";
         if (score > 0) {
             database.ref('scores').push({ name, score });
         }
+        nameInput.value = "";
         resetGame();
     }
 
@@ -167,13 +164,19 @@
         });
     }
 
+    // FIX: Only flap if the tap is NOT on the leaderboard
     const handleInput = (e) => { 
-        if(e.type === 'touchstart') e.preventDefault();
-        if(!waitingForName) { 
-            if(!gameRunning) { gameRunning = true; document.getElementById("msg").style.opacity=0; }
-            bird.velocity = JUMP; 
+        if (waitingForName) return; 
+        if (e.target.id === "playerName" || e.target.id === "saveBtn") return;
+
+        if (e.type === 'touchstart') e.preventDefault();
+        if (!gameRunning) { 
+            gameRunning = true; 
+            document.getElementById("msg").style.opacity=0; 
         }
+        bird.velocity = JUMP; 
     };
+
     window.addEventListener("touchstart", handleInput, {passive: false});
     window.addEventListener("mousedown", handleInput);
     window.addEventListener("keydown", (e) => { if(e.code === "Space") handleInput(e); });
